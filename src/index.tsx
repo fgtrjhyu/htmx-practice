@@ -6,648 +6,69 @@ import { html } from 'hono/html'
 
 const app = new Hono()
 
-var store =
-{ Alice:
-  { items:
-    [
-    ]
-  }
-, Bob:
-  { items:
-    [
-    ]
-  }
-}
+let state = 1
 
-var forms =
-{ Hoge:
-  { init(item)
-    { return { ...item, foo: [], bar: { text: "initial", checkbox: true } }
-    }
-  , update(item, body)
-    { return { ...item, ...body }
-    }
-  , view(key, index, item, form, view)
-    { return (
-        html`
-          <div>
-            <div>
-              <button hx-get="/api/htmx/keys/${key}/items/${index}?e=1" hx-target="#entity" hx-swap="innerHTML">Edit</button>
-            </div>
-            <div>Hoge view</div>
-            <div>
-              <label>text: <span>${item.text}</span></label>
-            </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; border: 1px solid green">
-              <div style="padding: 4px; margin: 4px; border: 1px solid blue;">
-                <div>
-                  <label>foo.length<span>${ item.foo.length }</span></label>
-                  <div>
-                    ${ item.foo.map(view || this.foo.view(key, index, 'Hoge', 'foo')) }
-                  </div>
-                  ${ item.foo.length < 3
-                     ? html`<button hx-post="/api/htmx/keys/${key}/items/${index}/kinds/Hoge/props/foo" hx-target="#entity" hx-swap="innerHTML">add element</button>`
-                     : html`<button disabled>add element</button>`
-                  }
-                </div>
-              </div>
-              <div style="padding: 4px; margin: 4px; border: 1px solid blue;">
-                ${ this.bar.view(key, index, 'Hoge', 'bar')(item.bar) }
-              </div>
-            </div>
-          </div>
-        `
-      )
-    }
-  , edit(key, index, item)
-    { return (
-        html`
-          <div>
-            <form hx-post="/api/htmx/keys/${key}/items/${index}" hx-target="#entity" hx-swap="innerHTML">
-              <div>
-                <button>Save</button>
-              </div>
-              <div>Hoge edit</div>
-              <div>
-                <label>text: <input name="text" value="${item.text}"></label>
-              </div>
-            </form>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; border: 1px solid green">
-              <div style="padding: 4px; margin: 4px; border: 1px solid blue;">
-                <div>
-                  <label>foo.length<span>${ item.foo.length }</span></label>
-                  <div>
-                    ${ item.foo.map( (e, position) => this.foo.view(key, index, 'Hoge', 'foo', position, true)(e, position) ) }
-                  </div>
-                </div>
-              </div>
-              <div style="padding: 4px; margin: 4px; border: 1px solid blue;">
-                ${ this.bar.view(key, index, 'Hoge', 'bar')(item.bar) }
-              </div>
-            </div>
-          </div>
-        `
-      )
-    }
-  , foo:
-    { init(oldValue, body)
-      { const newEntry =
-        { text: ""
+app.post('/htmx/foo', async (c) => {
+  const body = await c.req.parseBody()
+  state = parseInt(body.value, 10)
+  return c.html(
+    html`
+      <script>
+        // Event broadcasting 
+        for(const elem of Array.from(document.querySelectorAll('.myEventTarget'))) {
+          htmx.trigger(elem, 'myEvent', { value: ${state}, other: ${state} * 2 })
         }
-      ; return oldValue.concat( [ newEntry ] )
-      }
-    , update(oldValue, position, body)
-      { const newElem = { ...oldValue[position], ...body };
-      ; console.log(position, body)
-      ; return oldValue.toSpliced(position, 1, newElem)
-      }
-    , delete(oldValue, position)
-      { return oldValue.toSpliced(position, 1)
-      }
-    , view(key, index, kind, prop, position, edit) {
-        return function(item, position)
-        { console.log('view', key, index, kind, prop, position, 'edit', edit)
-        ; if (edit) {
-            return (
-              html`
-                <div>
-                  <label>text: <span>${ item.text }</span></label>
-                </div>
-              `
-            )
-          } else {
-            return (
-              html`
-                <div>
-                  <button hx-delete="/api/htmx/keys/${key}/items/${index}/kinds/${kind}/props/${prop}/positions/${position}" hx-target="#entity" hx-swap="innerHTML">X</button>
-                  <label>text: <span>${ item.text }</span></label>
-                  <button hx-get="/api/htmx/keys/${key}/items/${index}/kinds/${kind}/props/${prop}/positions/${position}?e=1" hx-target="#entity" hx-swap="innerHTML">Edit</button>
-                </div>
-              `
-            )
-          }
-        }
-      }
-    , edit(key, index, kind, prop, position) {
-        return function(item, position)
-        { return (
-            html`
-              <div>
-                <form hx-post="/api/htmx/keys/${key}/items/${index}/kinds/${kind}/props/${prop}/positions/${position}" hx-target="#entity" hx-swap="innerHTML">
-                  <label>text: <input name="text" value="${ item.text }"></label>
-                  <button>submit</button>
-                </form>
-              </div>
-            `
-          )
-        }
-      }
-    }
-  , bar:
-    { init(oldValue, body)
-      { return oldValue
-      }
-    , update(oldValue, body)
-      { return { ...oldValue, ...body } 
-      }
-    , view(key, index, kind, prop, position)
-      { return function()
-        { return (
-          html`
-            <div>bar edit</div>
-          `
-          )
-        }
-      }
-    , edit(key, index, kind, prop, position)
-      { return function()
-        { return (
-          html`
-            <div></div>
-          `
-          )
-        }
-      }
-    }
-  }
-, Fuga:
-  { init(item)
-    { return { ...item }
-    }
-  , update(item, body)
-    { return { ...item, ...body }
-    }
-  , view(key, index, item)
-    { return (
-        html`
-          <div>
-            <div>
-              <button hx-get="/api/htmx/keys/${key}/items/${index}?e=1" hx-target="#entity" hx-swap="innerHTML">Edit</button>
-            </div>
-            <div>Fuga view</div>
-            <div>
-              <label>text: <span>${item.text}</span></label>
-            </div>
-          </div>
-        `
-      );
-    }
-  , edit(key, index, item)
-    { return (
-        html`
-          <div>
-            <form hx-post="/api/htmx/keys/${key}/items/${index}" hx-target="#entity" hx-swap="innerHTML">
-              <div>
-                <button>Save</button>
-              </div>
-              <div>Fuga edit</div>
-              <div>
-                <label>text: <input name="text" value="${item.text}"></label>
-              </div>
-            </form>
-          </div>
-        `
-      )
-    }
-  }
-}
-
-app.get('/favicon.ico', (c) =>
-  { c.header('Content-Type', 'image/x-icon')
-  ; return c.body(fs.readFileSync('src/favicon.ico'))
-  }
-);
-
-function capitalize(text)
-{ return text.slice(0, 1).toUpperCase() + text.slice(1).toLowerCase();
-}
-
-function toAnchor(value, index)
-{ return html`<button style="padding: 4px; margin: 4px;" hx-get="/api/htmx/keys/${value}" hx-target="#entity" hx-swap="innerHTML">${value}</buton>`
-}
-
-function showItem(selected, key)
-{ return function(item, index)
-  { const backgroundColor = (selected === index) ? 'blue' : 'inherit'
-  ; const color = (selected === index) ? 'white' : 'inherit'
-  ; return (
-      html`
-        <div hx-get="/api/htmx/keys/${key}/items/${index}" hx-target="#entity" hx-swap="innerHTML"
-             style="border: 1px solid black; padding: 4px; margin: 4px; background-color: ${backgroundColor}; color: ${color}">
-          <button hx-delete="/api/htmx/keys/${key}/items/${index}" hx-target="#entity" hx-swap="innerHTML">X</button>
-          <span>${ index }.</span>
-          <span>${ item.kind }</span>
-        </div>
-      `
-    );
-  }
-}
-
-function replaceProp(prop, obj, newValue)
-{ return Object.fromEntries
-  ( Object.entries(obj)
-    .map( ([key, value], index) => key === prop ? [ key, newValue ] : [ key, value ] )
+      </script>
+      <div${state}</div>
+    `
   )
+});
+
+function inputElement(name) {
+  return function(value, index) {
+    return html`<input name="${name}" value="${value}">`
+  }
 }
 
-app.post('/api/htmx/keys/:key/items/:index/kinds/:kind/props/:prop/positions/:position', async (c) =>
-  { const key = await c.req.param('key')
-  ; const index = parseInt(await c.req.param('index'), 10)
-  ; const kind = await c.req.param('kind')
-  ; const prop = await c.req.param('prop')
-  ; const position = await c.req.param('position')
-  ; const body = await c.req.parseBody()
-  ; const form = forms[kind]
-  ; const oldEntry = store[key]
-  ; const oldItems = oldEntry.items
-  ; const oldItem = oldItems[index]
-  ; const oldProp = oldItem[prop]
-  ; const newProp = form[prop].update(oldProp, position, body)
-  ; const item = replaceProp(prop, oldItem, newProp)
-  ; const items = oldItems.toSpliced(index, 1, item)
-  ; const entry = { ...oldEntry, items }
-  ; store[key] = entry
-  ; const view = form[prop].view(key, index, kind, prop, position)
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              ${ form.view(key, index, item, form, view) }
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
+app.get('/htmx/bar', async (c) => {
+  const body = await c.req.parseBody()
+  const queries = await c.req.queries()
+  const foo = queries['foo']
+  const bar = queries['bar']
+  console.log('bar/get', 'queries', queries, 'body', body)
+  console.log('bar/get/foo', foo, typeof foo, foo instanceof Array)
+  console.log('bar/get/bar', bar, typeof bar, bar instanceof Array)
+  return c.html(
+    html`
+      ${ foo.map(inputElement('foo')) }
+      <div style="border: 1px solid blue; padding: 8px; margin: 8px; width: 10em; background-color: green; color: white;">
+        ${ [...new Array(state).keys()].map( e => html`<span style="padding: 2px; margin: 2px;">${e}</span>` ) }
+      </div>
+    `
+  )
+});
 
-app.get('/api/htmx/keys/:key/items/:index/kinds/:kind/props/:prop/positions/:position', async (c) =>
-  { const key = await c.req.param('key')
-  ; const index = parseInt(await c.req.param('index'), 10)
-  ; const kind = await c.req.param('kind')
-  ; const prop = await c.req.param('prop')
-  ; const position = parseInt(await c.req.param('position'), 10)
-  ; const form = forms[kind]
-  ; const subForm = form[prop]
-  ; const entry = store[key]
-  ; const items = entry.items
-  ; const item = items[index]
-  ; console.log('get', key, 'index', index, 'items', items.length, typeof items)
-  ; console.log('get', key, 'index', index, 'items[index]', items[index])
-  ; const propValue = item[prop]
+app.post('/htmx/baz', async (c) => {
+  const body = await c.req.parseBody()
+  const queries = await c.req.queries()
+  console.log('baz/post', 'queries', queries, 'body', body)
+  return c.html(
+    html`
+      <div style="border: 1px solid blue; padding: 8px; margin: 8px; width: 10em; background-color: blue; color: white;">
+        ${ new Array(state).fill('*').map( e => html`<span style="padding: 2px; margin: 2px;">${e}</span>` ) }
+      </div>
+    `
+  )
+});
 
-  ; const value = propValue[position]
-  ; const edit = c.req.query('e')
-  ; const view =
-      function(elem, num) {
-        if (num === position) {
-          return form[prop].edit(key, index, kind, prop, position)(elem, position)
-        } else {
-          return form[prop].view(key, index, kind, prop, position, true)(elem, position)
-        }
-      }
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              ${ form.view(key, index, item, form, view) }
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
+app.get('/favicon.ico', (c) => {
+  c.header('Content-Type', 'image/x-icon');
+  return c.body(fs.readFileSync('src/favicon.ico'))
+});
 
-app.delete('/api/htmx/keys/:key/items/:index/kinds/:kind/props/:prop/positions/:position', async (c) =>
-  { const key = await c.req.param('key')
-  ; const index = parseInt(await c.req.param('index'), 10)
-  ; const kind = await c.req.param('kind')
-  ; const prop = await c.req.param('prop')
-  ; const position = await c.req.param('position')
-  ; const form = forms[kind]
-  ; const oldEntry = store[key]
-  ; const oldItems = oldEntry.items
-  ; const oldItem = oldItems[index]
-  ; const oldProp = oldItem[prop]
-  ; const newProp = form[prop].delete(oldProp, position)
-  ; const item = replaceProp(prop, oldItem, newProp)
-  ; const items = oldItems.toSpliced(index, 1, item)
-  ; const entry = { ...oldEntry, items }
-  ; store[key] = entry
-  ; const view = form[prop].view(key, index, kind, prop, position)
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              ${ form.view(key, index, item, form, view) }
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
-
-app.post('/api/htmx/keys/:key/items/:index/kinds/:kind/props/:prop', async (c) =>
-  { const key = await c.req.param('key')
-  ; const index = parseInt(await c.req.param('index'), 10)
-  ; const kind = await c.req.param('kind')
-  ; const prop = await c.req.param('prop')
-  ; const body = await c.req.parseBody()
-  ; const form = forms[kind]
-  ; const oldEntry = store[key]
-  ; const oldItems = oldEntry.items
-  ; const oldItem = oldItems[index]
-  ; const oldProp = oldItem[prop]
-  ; const newProp = form[prop].init(oldProp, body)
-  ; console.log(newProp);
-  ; const item = replaceProp(prop, oldItem, newProp)
-  ; const items = oldItems.toSpliced(index, 1, item)
-  ; const entry = { ...oldEntry, items }
-  ; store[key] = entry
-  ; const view = form[prop].view(key, index, kind, prop)
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              ${ form.view(key, index, item, form, view) }
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
-
-app.post('/api/htmx/keys', async (c) =>
-  { const body = await c.req.parseBody()
-  ; const key = capitalize(body.key)
-  ; const newEntry = [ key, { items: [] } ]
-  ; store = Object.fromEntries( Object.entries(store).concat( [ newEntry ] ) )
-  ; return c.html(html`${Object.keys(store).map(toAnchor)}`)
-  }
-);
-
-app.post('/api/htmx/keys/:key/items/:index', async (c) =>
-  { const key = await c.req.param('key')
-  ; const index = parseInt(await c.req.param('index'), 10)
-  ; const body = await c.req.parseBody()
-  ; console.log(body)
-  ; const oldEntry = store[key]
-  ; const oldItems = oldEntry.items
-  ; const oldItem = oldItems[index]
-  ; const form = forms[oldItem.kind];
-  ; const item = form.update(oldItem, body)
-  ; const items = oldItems.toSpliced(index, 1, item)
-  ; const entry = { ...oldEntry, items }
-  ; store[key] = entry;
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              ${ form.view(key, index, item, form) }
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
-
-app.get('/api/htmx/keys/:key/items/:index', async (c) =>
-  { const key = await c.req.param('key')
-  ; const index = parseInt(await c.req.param('index'), 10)
-  ; const edit = c.req.query('e');
-  ; const entry = store[key]
-  ; const items = entry.items
-  ; const item = items[index]
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                      ? html`<button >add</button>`
-                      : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              ${ item
-                 ? ( edit
-                     ? forms[item.kind].edit(key, index, item, forms[item.kind])
-                     : forms[item.kind].view(key, index, item, forms[item.kind])
-                   )
-                 : null
-               }
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
-
-app.delete('/api/htmx/keys/:key/items/:index', async (c) =>
-  { const key = await c.req.param('key')
-  ; const index = parseInt(await c.req.param('index'), 10);
-  ; const oldEntry = store[key]
-  ; const items = oldEntry.items.toSpliced(index, 1)
-  ; console.log(key, index, items.length, oldEntry.items.length)
-  ; const entry = { ...oldEntry, items }
-  ; store[key] = entry
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
-
-app.post('/api/htmx/keys/:key/items', async (c) =>
-  { const key = await c.req.param('key')
-  ; const body = await c.req.parseBody()
-  ; const kind = body.kind;
-  ; const form = forms[kind];
-  ; const oldEntry = store[key]
-  ; const index = oldEntry.items.length;
-  ; const item = form.init({ kind  });
-  ; const items = oldEntry.items.concat( [ item ] )
-  ; const entry = { ...oldEntry, items }
-  ; store[key] = entry
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(index, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              ${ form.view(key, index, item, form) }
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
-
-app.get('/api/htmx/keys/:key', async (c) =>
-  { const key = await c.req.param('key')
-  ; const entry = store[key]
-  ; const items = entry.items
-  ; return c.html
-    ( html`
-        <div>
-          <h1>${key}</h1>
-          <div style="display: grid; grid-template-columns: 1fr 6fr;">
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-              <div id="items">${ items.map(showItem(undefined, key)) }</div>
-              <div style="margin: 4px; padding: 4px;">
-                <form hx-post="/api/htmx/keys/${key}/items" hx-target="#entity" hx-swap="innerHTML">
-                  <select name="kind">
-                    ${ Object.keys(forms).map(e => html`<option value="${e}">${e}</option>`) }
-                  </select>
-                  ${ (items.length) < 5 
-                  ? html`<button >add</button>`
-                  : html`<button disabled>add</button>`
-                  }
-                </form>
-              </div>
-            </div>
-            <div style="border: 1px solid blue; padding: 4px; margin: 4px;">
-            </div>
-          </div>
-        </div>
-      `
-    )
-  }
-);
-
-app.get('/', (c) =>
-  { return c.html
-    ( html`
+app.get('/', (c) => {
+  return c.html(
+    html`
       <!DOCTYPE html>
       <html>
         <head>
@@ -657,24 +78,53 @@ app.get('/', (c) =>
             integrity="sha384-oeUn82QNXPuVkGCkcrInrS1twIxKhkZiFfr2TdiuObZ3n3yIeMiqcRzkIcguaof1"
             crossorigin="anonymous">
           </script>
+          <script>
+          const person = {
+            firstName: "Jone",
+            lastName: "Doe",
+          };
+          </script>
         </head>
         <body>
-          <div id="keys">
-            ${ Object.keys(store).map(toAnchor) }
+
+          <div style="border: 1px solid green; padding: 4px; margin: 4px;">
+            <form hx-post="/htmx/foo" hx-target="#foo" hx-swap="innerHTML">
+              <input name="value" type="number" value="5" min="1" max="10">
+              <button>Click me!</button>
+            </form>
+            <div id="foo"></div>
           </div>
-          <form>
-            <input name="key" minlength="3">
-            <button hx-post="/api/htmx/keys" hx-target="#keys" hx-swap="innerHTML">add.</button>
+
+          <hr>
+          <h1>trigger 1</h1>
+          <form name="t1" hx-get="/htmx/bar" hx-trigger="myEvent" hx-vals="js:{ 'bar': [ document.forms.t1.bar.checked ] }" hx-swap="innerHTML" class="myEventTarget">
+            <input name="foo" value="something-1">
+            <input name="foo" value="something-2">
+            <input name="bar" type="checkbox">
           </form>
+          
           <hr>
-          <div id="entity"></div>
+          <h1>trigger 2</h1>
+          <form name"form1" hx-post="/htmx/baz" hx-trigger="myEvent" hx-swap="innerHTML" class="myEventTarget">
+            <input name="foo" value="foo-value"><!-- do not include -->
+            <input name="bar" value="bar-value">
+            <input name="baz" value="baz-value"><!-- do not include -->
+            <input name="qux" value="qux-value">
+          </form>
+
           <hr>
+          <h1>trigger 3</h1>
+          <form hx-post="/htmx/baz" hx-trigger="myEvent" hx-swap="innerHTML" class="myEventTarget">
+            <input name="foo" value="foo-value">
+            <input name="bar" value="bar-value"><!-- do not include but the y parameter is this.value why the hx-vals evaluate this value by the expressions -->
+            <input name="baz" value="baz-value">
+            <input name="qux" value="qux-value">
+          </form>
         </body>
       </html>
-      `
-    );
-  }
-);
+    `
+  );
+});
 
 
 const port = 3000;
